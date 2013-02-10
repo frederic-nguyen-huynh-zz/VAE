@@ -2,9 +2,13 @@ NFP 121 Programmation avancée
 
 En tant que lead developer Client chez IsCool Entertainment, au sein de l'équipe "Multi-joueur", j'ai la responsabilité du bon fonctionnement de la partie client de nos jeux, de leur achitecture, ainsi que de la mise en place des outils permettant de facilité ou de rationnaliser le travail des autres développeur. L'équipe de développeur au sein de laquelle j'évolue comprend 5 personnes, 2 developpeurs "client", dont moi, 1 développeur JAVA qui à la charge de la partie "game server", qui comprend le gameplay des jeux, et 2 développeurs .NET qui s'occupent de la partie Web et portail. Nos jeux sont des applications Facebook. La partie .NET se permet d'afficher la page avec un client flash et gère l'ensemble de la partie dite "sociale". Le client Flash est connecté de manière persistente au game server (par socket). Nous avons à l'heure actuelle deux jeux en production, que nous faisons évoluer de manière itérative: un jeu de Belote et un jeu proche d'un scrabble. Les joueurs peuvent effectuer des parties à plusieurs, d'où l'importance de maintenir une connexion persistante, et d'avoir une optimisation tant dans l'affichage que deans la gestion du gameplay - que ce soit côté client que serveur - afin de ne pas nuire à la fluidité du jeu.
 
+
+
 1/ Le développement client
 
 Je suis arrivé dans l'équipe Multi-joueur fin 2010. A cette époque, le développement de la partie cilent est balbutiante. L'écosystème Flash permet d'écrire des morceaux de script au milieu de la conception graphique, ce qui nuit fortement à sa compréhension. Cependant, ce fût le choix pris par les développeurs me précédant, en raison de leurs propres habitudes. Qui plus est, la livraison était totalement manuelle. Le "release manager" compilait le programme sur son poste de travail, et le mettant en ligne par un copier/coller sur le serveurs de fichiers des environnements de tests ou de production. La programmation se faisait à la demande, en "fixant" des morceaux de code, quitte à rendre opaque l'architecture globale du client.
+
+En 2010, nous n'avions qu'un seul jeu: Belote. Le deuxième, Wordox, viendra bien plus tard, sera développé entre décembre 2011 et avril 2012, et bénéficiera de l'expérience Belote
 
 1.1/ Mise en place de la compilation automatisée
 
@@ -19,8 +23,31 @@ Une fois le client compilable par Maven, et non plus par Flash, la mise en place
 
 1.2/ Refonte de l'architecture
 
-1.2.1/ Première base UML du client
+1.2.1/ Utilisation de l'UML pour client
 
+Le code pré-existant du client était très difficile à conserver. Le code était entremêlé. Les dépendances fortes étaient omniprésentes. Lorsqu'il a fallu permettre au client de supporter une fonctionnalité de connexion particulière, la modification d'une classe à entrainer la modification de l'ensemble du code. A ce stade-là, il ne me restait plus énormément de choix: en discussion avec le responsable technique de l'équipe, nous avons décidé de réécrire entièrement le client, afin de poser une architecture plus évolutive, ou modifier un objet ou une classe ne force pas à changer de tout le programme.
+
+Cependant, il n'était pas question pour le responsable technique de me permettre de lancer ce chantier - qui était coûteux - sans avoir en amont effectué un minimum d'analyse. J'ai basé celle-ci selon deux axes:
+* Premièrement, il fallait que je valide la thèse selon laquelle le code actuel était problématique
+* Deuxième, il était nécessaire de poser une architecture qui puisse être compréhensible par les autres membres techniques de l'équipe, rapidement.
+
+Pour le premier point, j'ai simplement utilisé un outil de retro-conception: celui-ci génère les diagrammes UML de classes à partir d'un code déjà existant. Le résultat était sans appel. Pour en revenir à une autre UE (MOCA B1), le diagramme de classes étaient un graphe pratiquement fortement connexe). Toutes les classes finissaient par être reliées à toutes les autres. La notion de modularité était inexistante. L'absence d'interface de programmation transformaient chaque modification en risque pur toute l'application. En ce basant sur des classes concrètes, toutes classes étaient fortement dépendantes de l'implémentation même de toute autre classe.
+
+Pour le deuxième point, j'ai utilisé deux types de diagrammes UML. De séquences d'abord. Avant de penser au contenu même des classes, il me fallait poser le concept d'un mécanisme de communication entre l'utilisateur de le game server, puisque le client n'est jamais qu'une interface assez évoluée entre les deux. Ainsi, pour les phases de connexions, d'entrée dans une partie, de jeu, de déconnexions, les diagrammes de séquences ont été définis. Ceux-ci faisaient apparaître comme objets l'utilisateur, le game serveur, et entre eux:
+* La "vue", à savoir toutes les objets d'affichage du client
+* La partie contrôleur, celle qui agit sur les données du client, sur les vues, et sur la partie network du client
+* Le modèle, où on trouve les objets stockant les donnnées et états du client
+* La couche network, qui intéragit avec le serveur.
+
+De ces diagrammes de séquences, on arrive facilement à ressortir les fonctionnalités dont on a besoin pour les différents blocs du client. On  peut ensuite les diviser en classes.
+
+Je n'ai pas posé le diagramme de classes complets du client. Les éléments qui m'intéressaient le plus étaient la partie contrôleur et la partie network. Avec du recul, j'aurais dû tout de même poser les diagrammes du modèle. En effet, 4 développeurs différents sont passés sur le code, et l'absence de conception suffisamment élaborée en amont sur la partie modèle a engendré un assez gros problème. Si au démarrage, le modèle pouvait être représenté par deux ou trois classes, rapidement, son code est devenu impossible à relire, les classes ont gonflé. Plus de design en amont aurait pu éviter ce problème, du moins, j'ai évité qu'il se reproduise sur Wordox par entre autre ce biais-là.
+
+Les différents diagrammes posés,  il n'a plus été très difficile de démontrer la raison d'être du chantier de réécriture. Si celui-ci représentait un coût au démarrage, l'investissement était plus que raisonnable.
+
+J'admets cependant ne pas être un grand utilisateur de diagrammes UML de classes. Je leur préfère largement:
+* les diagrammes de séquences, parce qu'ils font bien plus facilement apparaître tous les composants d'un logiciel, ce qui est extrêmement important de notre architecture ou les composants sont nombreux et ne partagent pas la même technologie (Actionscript, JAVA, .NET, SQL). Nous avons pu par exemple corriger et éviter des monter en charge inutile sur les serveurs, en visualisant rapidement la manière dont le client requête la partie serveur. Ou encore, isoler les données que nous voulions stocker en cache (lorsqu'il y a bien plus de lecture de la donnée que d'écriture) ou en base de données (lorsque la donnée est aussi souvent écrite que lue, voir plus écrite que lue). A chaque nouvelle fonctionnalité touchant l'ensemble des composants, tous les développeurs se réunissent, et nous discutons ensemble autour de ces diagrammes, quelque soit notre technologie, ce qui permet à tous d'avoir une vision d'ensemble
+* les diagrammes d'états, parce qu'ils permettent de savoir rapidement qu'à un instant T, le client doit pouvoir recevoir tel message (que ce soit d'un serveur ou de l'utilisateur) ou effectuer telle action.
 
 
 1.2.2/ Utilisation de MVC, mise en place d'une couche network au sein du client
